@@ -10,31 +10,40 @@ public section.
   types:
     T_DISPLAY_MODE TYPE C LENGTH 1 .
   types:
+    T_TIME_MODE TYPE C LENGTH 1 .
+  types:
     T_MEASUREMENT_ID TYPE c LENGTH 50 .
 
+  constants:
+    BEGIN OF E_CLOCK_RESOLUTION,
+               LOW TYPE T_CLOCK_RESOLUTION VALUE '1',
+               HIGH TYPE T_CLOCK_RESOLUTION VALUE '2',
+             END OF E_CLOCK_RESOLUTION .
   constants:
     BEGIN OF E_DISPLAY_MODE,
                TEXT TYPE T_DISPLAY_MODE VALUE '1',
                GRAPHICAL TYPE T_DISPLAY_MODE VALUE '2',
              END OF E_DISPLAY_MODE .
   constants:
-    BEGIN OF E_CLOCK_RESOLUTION,
-               LOW TYPE T_CLOCK_RESOLUTION VALUE '1',
-               HIGH TYPE T_CLOCK_RESOLUTION VALUE '2',
-             END OF E_CLOCK_RESOLUTION .
+    BEGIN OF E_TIME_MODE,
+               SUM TYPE T_TIME_MODE VALUE '1',
+               AVERAGE TYPE T_TIME_MODE VALUE '2',
+             END OF E_TIME_MODE .
 
   class-methods SET_CLOCK_RESOLUTION
     importing
       !PI_CLOCK_RESOLUTION type T_CLOCK_RESOLUTION .
-  class-methods START_MEASUREMENT
+  methods CLEAR_MEASUREMENT .
+  methods START_MEASUREMENT
     importing
       !PI_ID type T_MEASUREMENT_ID .
-  class-methods END_MEASUREMENT
+  methods END_MEASUREMENT
     importing
       !PI_ID type T_MEASUREMENT_ID .
-  class-methods DISPLAY_MEASUREMENT
+  methods DISPLAY_MEASUREMENT
     importing
-      !PI_DISPLAY_MODE type T_DISPLAY_MODE default E_DISPLAY_MODE-TEXT .
+      !PI_DISPLAY_MODE type T_DISPLAY_MODE default E_DISPLAY_MODE-TEXT
+      !PI_TIME_MODE type T_TIME_MODE default E_TIME_MODE-SUM .
 protected section.
 private section.
 
@@ -50,10 +59,14 @@ private section.
   types:
     t_measurement_tab TYPE SORTED TABLE OF t_measurement WITH UNIQUE KEY id .
 
-  class-data MEASUREMENT_TAB type T_MEASUREMENT_TAB .
+  data MEASUREMENT_TAB type T_MEASUREMENT_TAB .
 
-  class-methods HELPER_DISPLAY_TEXT .
-  class-methods HELPER_DISPLAY_GRAPHICAL .
+  methods HELPER_DISPLAY_TEXT
+    importing
+      !PI_TIME_MODE type T_TIME_MODE default E_TIME_MODE-SUM .
+  methods HELPER_DISPLAY_GRAPHICAL
+    importing
+      !PI_TIME_MODE type T_TIME_MODE default E_TIME_MODE-SUM .
 ENDCLASS.
 
 
@@ -61,12 +74,21 @@ ENDCLASS.
 CLASS YJRS_RUNTIME_MEASUREMENT IMPLEMENTATION.
 
 
+  method CLEAR_MEASUREMENT.
+    REFRESH: measurement_tab.
+  endmethod.
+
+
   method DISPLAY_MEASUREMENT.
     CASE pi_display_mode.
       WHEN e_display_mode-text.
-        CALL METHOD helper_display_text.
+        CALL METHOD helper_display_text
+          EXPORTING
+            pi_time_mode = pi_time_mode.
       WHEN e_display_mode-graphical.
-        CALL METHOD helper_display_graphical.
+        CALL METHOD helper_display_graphical
+          EXPORTING
+            pi_time_mode = pi_time_mode.
     ENDCASE.
   endmethod.
 
@@ -103,6 +125,8 @@ CLASS YJRS_RUNTIME_MEASUREMENT IMPLEMENTATION.
           l_percentage TYPE p DECIMALS 2,
           l_percentage_text TYPE c LENGTH 7,
           l_bar_position TYPE i,
+
+          l_average_time TYPE i,
 
           lwa_measurement TYPE t_measurement,
 
@@ -161,7 +185,12 @@ CLASS YJRS_RUNTIME_MEASUREMENT IMPLEMENTATION.
       FORMAT COLOR COL_BACKGROUND INTENSIFIED OFF.
       WRITE: l_percentage TO l_percentage_text.
       CONCATENATE l_percentage_text '%' INTO l_percentage_text.
-      WRITE: lwa_measurement-total_time, 'ms', '(', l_percentage_text, ')'.
+      IF pi_time_mode = e_time_mode-average.
+        l_average_time = lwa_measurement-total_time / lwa_measurement-total_executions.
+        WRITE: 'Average time:', l_average_time, 'ms', '(', l_percentage_text, ')'.
+      ELSE.
+        WRITE: lwa_measurement-total_time, 'ms', '(', l_percentage_text, ')'.
+      ENDIF.
       WRITE: /4 'Total executions:', lwa_measurement-total_executions.
       WRITE AT 52 '|'.
     ENDLOOP.
@@ -177,14 +206,22 @@ CLASS YJRS_RUNTIME_MEASUREMENT IMPLEMENTATION.
 
 
   method HELPER_DISPLAY_TEXT.
-    DATA: lwa_measurement TYPE t_measurement,
+    DATA: l_average_time TYPE i,
+
+          lwa_measurement TYPE t_measurement,
 
           li_measurement TYPE STANDARD TABLE OF t_measurement.
 
     li_measurement[] = measurement_tab[].
     SORT li_measurement BY position.
     LOOP AT li_measurement INTO lwa_measurement.
-      WRITE: / lwa_measurement-id, '(', lwa_measurement-total_executions, ' times executed):', lwa_measurement-total_time, 'ms'.
+      WRITE: / lwa_measurement-id, '(', lwa_measurement-total_executions, ' times executed):'.
+      IF pi_time_mode = e_time_mode-average.
+        l_average_time = lwa_measurement-total_time / lwa_measurement-total_executions.
+        WRITE: 'Average time:', l_average_time, 'ms'.
+      ELSE.
+        WRITE: lwa_measurement-total_time, 'ms'.
+      ENDIF.
     ENDLOOP.
   endmethod.
 

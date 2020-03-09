@@ -9,12 +9,12 @@
 REPORT YJRS_ABAP_0001.
 
 DEFINE START_MEASUREMENT.
-  CALL METHOD yjrs_runtime_measurement=>start_measurement
+  CALL METHOD lo_runtime->start_measurement
     EXPORTING
       pi_id = &1.
 END-OF-DEFINITION.
 DEFINE END_MEASUREMENT.
-  CALL METHOD yjrs_runtime_measurement=>end_measurement
+  CALL METHOD lo_runtime->end_measurement
     EXPORTING
       pi_id = &1.
 END-OF-DEFINITION.
@@ -36,13 +36,17 @@ FORM start_of_selection .
            posnr TYPE n LENGTH 3,
          END OF lt_position.
 
-  DATA: li_head TYPE STANDARD TABLE OF lt_head
+  DATA: lo_runtime TYPE REF TO yjrs_runtime_measurement,
+
+        li_head TYPE STANDARD TABLE OF lt_head
                 WITH HEADER LINE,
         li_positions TYPE STANDARD TABLE OF lt_position
                      WITH HEADER LINE,
         li_positions_sorted TYPE SORTED TABLE OF lt_position
                             WITH NON-UNIQUE KEY docnr gjahr posnr
                             WITH HEADER LINE.
+
+  CREATE OBJECT lo_runtime.
 
 **********************************************************************
 * Populating test internal tables.
@@ -119,5 +123,5 @@ FORM start_of_selection .
   ENDLOOP.
   END_MEASUREMENT 'BINARY SEARCH SORTED TABLE'.
 
-  yjrs_runtime_measurement=>display_measurement( ).
+  lo_runtime->display_measurement( ).
 ENDFORM.
